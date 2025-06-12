@@ -60,12 +60,13 @@ app.use(session({
         mongoUrl: process.env.MONGO_URI,
         collectionName: 'sessions'
     }),
-    cookie: {
-        secure: true,
-        httpOnly: true,
-        sameSite: 'lax',
-        maxAge: 24 * 60 * 60 * 1000
-    }
+   cookie: {
+  secure: true,         // required for HTTPS
+  httpOnly: true,
+  sameSite: 'none',     // allow cross-site
+  maxAge: 24 * 60 * 60 * 1000
+}
+
 }));
 
 // Routes
