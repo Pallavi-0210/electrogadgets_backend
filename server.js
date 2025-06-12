@@ -21,13 +21,12 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('Connected to MongoDB'))
 .catch(err => console.error('MongoDB connection error:', err));
 
-// Allowed frontend origin(s)
+// Allowed frontend origins
 const allowedOrigins = [
-    
     'https://electrogadgets-frontend.vercel.app'
 ];
 
-// CORS setup
+// ✅ 1. CORS config — must come BEFORE session
 app.use(cors({
     origin: function (origin, callback) {
         if (!origin || allowedOrigins.includes(origin)) {
@@ -41,17 +40,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type']
 }));
 
-// Log origin for debugging
-app.use((req, res, next) => {
-    console.log('Request Origin:', req.headers.origin);
-    next();
-});
-
-// Body parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Session config
+// ✅ 2. Session config — before body parsers
 app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
@@ -60,33 +49,36 @@ app.use(session({
         mongoUrl: process.env.MONGO_URI,
         collectionName: 'sessions'
     }),
-   cookie: {
-  secure: true,         // required for HTTPS
-  httpOnly: true,
-  sameSite: 'none',     // allow cross-site
-  maxAge: 24 * 60 * 60 * 1000
-}
-
+    cookie: {
+        secure: true,         // ✅ Required for HTTPS (Render uses HTTPS)
+        httpOnly: true,
+        sameSite: 'none',     // ✅ Required for cross-origin (Vercel → Render)
+        maxAge: 24 * 60 * 60 * 1000
+    }
 }));
 
-// Routes
+// (Optional) Log request origin for debug
+app.use((req, res, next) => {
+    console.log('Request Origin:', req.headers.origin);
+    next();
+});
+
+// ✅ 3. Body parsers — after session
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ✅ 4. API Routes
 app.use('/api/', authRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 
-// Stripe payment route
+// ✅ 5. Stripe payment route
 app.post('/api/create-payment-intent', async (req, res) => {
     console.log('=== Payment Intent Request ===');
-    console.log('Request body:', req.body);
-
     const { payment_method_id, amount, currency = 'inr', email } = req.body;
 
-    if (!payment_method_id) {
-        return res.status(400).json({ error: 'Payment method ID is required' });
-    }
-
-    if (!amount || amount <= 0) {
-        return res.status(400).json({ error: 'Valid amount is required' });
+    if (!payment_method_id || !amount || amount <= 0) {
+        return res.status(400).json({ error: 'Invalid payment data' });
     }
 
     try {
@@ -103,37 +95,35 @@ app.post('/api/create-payment-intent', async (req, res) => {
             },
         });
 
-        if (paymentIntent.status === 'requires_action' || paymentIntent.status === 'requires_source_action') {
-            res.json({
+        if (paymentIntent.status === 'requires_action') {
+            return res.json({
                 requires_action: true,
                 payment_intent_client_secret: paymentIntent.client_secret,
                 status: paymentIntent.status
             });
-        } else if (paymentIntent.status === 'succeeded') {
-            res.json({
+        }
+
+        if (paymentIntent.status === 'succeeded') {
+            return res.json({
                 success: true,
                 payment_intent_id: paymentIntent.id,
                 status: paymentIntent.status
             });
-        } else if (paymentIntent.status === 'requires_payment_method') {
-            res.status(400).json({
-                error: 'Payment failed. Please try with a different payment method.',
-                status: paymentIntent.status
-            });
-        } else {
-            res.status(400).json({
-                error: `Payment status: ${paymentIntent.status}. Please try again.`,
-                status: paymentIntent.status
-            });
         }
+
+        return res.status(400).json({
+            error: `Payment failed with status: ${paymentIntent.status}`,
+            status: paymentIntent.status
+        });
+
     } catch (error) {
-        console.error('Stripe payment error:', error);
+        console.error('Stripe error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// Start server
+// ✅ 6. Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
 });
