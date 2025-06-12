@@ -33,6 +33,7 @@ router.post('/signup', async (req, res) => {
 });
 
 // --- LOGIN ROUTE ---
+// --- LOGIN ROUTE ---
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
@@ -52,12 +53,18 @@ router.post('/login', async (req, res) => {
         // Store user data in session
         req.session.user = { id: user._id, email: user.email, name: user.name };
 
+        // ✅ Debug logs for session
+        console.log('✅ Session just created:');
+        console.log('User:', req.session.user);
+        console.log('Session ID:', req.sessionID);
+
         res.status(200).json({ message: 'Login successful', user: req.session.user });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Server error' });
     }
 });
+
 
 // --- LOGOUT ROUTE ---
 router.post('/logout', (req, res) => {
