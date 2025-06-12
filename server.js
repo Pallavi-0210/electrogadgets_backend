@@ -23,7 +23,7 @@ mongoose.connect(process.env.MONGO_URI, {
 
 // Allowed frontend origin(s)
 const allowedOrigins = [
-    'http://localhost:3000',
+    
     'https://electrogadgets-frontend.vercel.app'
 ];
 
